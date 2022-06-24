@@ -53,6 +53,41 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
       RUBY
     end
 
+    context 'when called on an explicit receiver' do
+      it 'registers an offense when not specifying any options' do
+        expect_offense(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.has_one :foo
+                   ^^^^^^^ Specify a `:dependent` option.
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.has_one :foo, dependent: nil
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+    end
+
     context 'with :through option' do
       it 'does not register an offense for non-nil value' do
         expect_no_offenses(<<~RUBY)
@@ -69,6 +104,41 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
             ^^^^^^^ Specify a `:dependent` option.
           end
         RUBY
+      end
+
+      context 'when called on an explicit receiver' do
+        it 'does not register an offense for non-nil value' do
+          expect_no_offenses(<<~RUBY)
+            class Person < ApplicationRecord; end
+
+            module PersonDecorator
+              extend ActiveSupport::Concern
+
+              def self.prepended(base)
+                base.has_one :foo, through: :bar
+              end
+
+              Person.prepend self
+            end
+          RUBY
+        end
+
+        it 'registers an offense for nil value' do
+          expect_offense(<<~RUBY)
+            class Person < ApplicationRecord; end
+
+            module PersonDecorator
+              extend ActiveSupport::Concern
+
+              def self.prepended(base)
+                base.has_one :foo, through: nil
+                     ^^^^^^^ Specify a `:dependent` option.
+              end
+
+              Person.prepend self
+            end
+          RUBY
+        end
       end
     end
 
@@ -89,6 +159,24 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
             with_options dependent: :destroy do
               has_one :foo, class_name: 'Foo'
             end
+          end
+        RUBY
+      end
+
+      it 'does not register an offense when called on an explicit receiver' do
+        expect_no_offenses(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.with_options dependent: :destroy do
+                has_one :foo
+              end
+            end
+
+            Person.prepend self
           end
         RUBY
       end
@@ -143,6 +231,80 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
       RUBY
     end
 
+    context 'when called on an explicit receiver' do
+      it 'registers an offense when not specifying any options' do
+        expect_offense(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.has_many :foo
+                   ^^^^^^^^ Specify a `:dependent` option.
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+
+      it 'does not register an offense' do
+        expect_no_offenses(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.has_many :foo, dependent: nil
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+
+      it 'registers an offense when using association extension and not specifying any options' do
+        expect_offense(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.has_many :foo do
+                   ^^^^^^^^ Specify a `:dependent` option.
+                def bar
+                end
+              end
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+
+      it "doesn't register an offense when using association extension" do
+        expect_no_offenses(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.has_many :foo, dependent: nil do
+                def bar
+                end
+              end
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+    end
+
     context 'with :through option' do
       it 'does not register an offense for non-nil value' do
         expect_no_offenses('has_many :foo, through: :bars')
@@ -163,6 +325,45 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
             ^^^^^^^^ Specify a `:dependent` option.
           end
         RUBY
+      end
+
+      context 'when called on an explicit receiver' do
+        it 'does not register an offense for non-nil value' do
+          expect_no_offenses('base.has_many :foo, through: :bars')
+        end
+
+        it 'does not register an offense when using lambda argument and specifying non-nil `:through` option' do
+          expect_no_offenses(<<~RUBY)
+            class Person < ApplicationRecord; end
+
+            module PersonDecorator
+              extend ActiveSupport::Concern
+
+              def self.prepended(base)
+                base.has_many :activities, -> { order(created_at: :desc) }, through: :notes, source: :activities
+              end
+
+              Person.prepend self
+            end
+          RUBY
+        end
+
+        it 'registers an offense for nil value' do
+          expect_offense(<<~RUBY)
+            class Person < ApplicationRecord; end
+
+            module PersonDecorator
+              extend ActiveSupport::Concern
+
+              def self.prepended(base)
+                base.has_many :foo, through: nil
+                     ^^^^^^^^ Specify a `:dependent` option.
+              end
+
+              Person.prepend self
+            end
+          RUBY
+        end
       end
     end
 
@@ -201,6 +402,24 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
         RUBY
       end
 
+      it "doesn't register an offense for `with_options dependent: :destroy` when called on an explicit receiver" do
+        expect_no_offenses(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.with_options dependent: :destroy do
+                has_many :foo
+              end
+            end
+
+            Person.prepend self
+          end
+        RUBY
+      end
+
       context 'Multiple associations' do
         it "doesn't register an offense for " \
            '`with_options dependent: :destroy`' do
@@ -226,6 +445,27 @@ RSpec.describe RuboCop::Cop::Rails::HasManyOrHasOneDependent, :config do
                 has_many :special_tags, foreign_key: :special_id, inverse_of: :special
               end
             end
+          end
+        RUBY
+      end
+
+      it 'does not register an offense when called on an explicit receiver and `dependent: :destroy` is present' do
+        expect_no_offenses(<<~RUBY)
+          class Person < ApplicationRecord; end
+
+          module PersonDecorator
+            extend ActiveSupport::Concern
+
+            def self.prepended(base)
+              base.with_options dependent: :destroy do
+                has_many :tags
+                with_options class_name: 'Tag' do
+                  has_many :special_tags, foreign_key: :special_id, inverse_of: :special
+                end
+              end
+            end
+
+            Person.prepend self
           end
         RUBY
       end
